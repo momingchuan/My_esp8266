@@ -168,7 +168,10 @@ void loop() {
                   j++;
                 }
             }
-
+            // Serial.printf("sp1:%s\n", SendspeedData[0]);
+            // Serial.printf("sp2:%s\n", SendspeedData[1]);
+            // Serial.printf("sp3:%s\n", SendspeedData[2]);
+            // Serial.printf("sp4:%s\n", SendspeedData[3]);
 
             String data =  generateDataString(atoi(SendspeedData[0]),
             atoi(SendspeedData[1]),atoi(SendspeedData[2]),atoi(SendspeedData[3]));
@@ -184,7 +187,7 @@ void loop() {
 
 }
 
-String generateDataString(int count1, int count2, int count3, int count4) {
+String generateDataString(unsigned int count1, unsigned int count2, unsigned int count3, unsigned int count4) {
   String data = "{\"count1\": " + String(count1) + ", \"count2\": " + String(count2) + ", \"count3\": " + String(count3) + ", \"count4\": " + String(count4) + "}";
   return data;
 }
