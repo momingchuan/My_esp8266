@@ -5,13 +5,27 @@
 #include <string>
 #include <Ticker.h>
 #include <EEPROM.h>
+#include <PubSubClient.h>
+
 
 #define EEPROM_SIZE 128
 
 
-const char* server = "fc-mp-f86e4895-a6ec-4a1c-a14f-141f3d09c694.next.bspapp.com";
+//MQTT server define type start 
+const char* mqtt_server = "121.40.165.157"; // 使用HIVEMQ 的信息中转服务
+const char* TOPIC = "home/seria";                     // 订阅信息主题
+const char* mqtt_client_id = "mmc";
+const char* mqtt_username = "mmc";
+const char* mqtt_password = "631001833";
+
+WiFiClient espClient;                                                         // 定义wifiClient实例
+PubSubClient client(espClient);                                         // 定义PubSubClient的实例
+long lastMsg = 0;                                                               // 记录上一次发送信息的时长
+//MQTT server define type end
+
+const char* server = "www.numbertwo.tech";
 int port = 443;
-int step=0;
+
 int connectStep=0;
 
 String  ssid;
@@ -20,6 +34,7 @@ Ticker timer;
 
 
 int my_timeout=0;
+
 const int ssidAddrOffset = 0;     // 保存SSID的起始地址偏移量
 const int passwordAddrOffset = 32;  // 保存密码的起始地址偏移量
 
@@ -34,12 +49,44 @@ void setup() {
   readStringFromEEPROM(ssidAddrOffset, ssid);
   readStringFromEEPROM(passwordAddrOffset,password);
   connectWifi(ssid.c_str(),password.c_str(),10);
+
+  client.setServer(mqtt_server, 1883);                              //设定MQTT服务器与使用的端口，1883是默认的MQTT端口
+  client.setCallback(callback);                                          //设定回调方式，当ESP8266收到订阅消息时会调用此方法
   
 }
 
 
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if( client.connect(mqtt_client_id, mqtt_username, mqtt_password)) {
+      Serial.println("connected");
+      // 连接成功时订阅主题
+      client.subscribe(TOPIC);
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);   // 打印主题信息
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]); // 打印主题内容
+  }
+  Serial.println();
 
 
+
+
+}
 
 void writeStringToEEPROM(int addrOffset, const String& str) {
   for (size_t i = 0; i < str.length(); i++) {
@@ -58,49 +105,70 @@ void readStringFromEEPROM(int addrOffset, String& str) {
   }
 }
 
-
-
 void myTimer() {
   // 这里是你要执行的代码
   // ...
   my_timeout++;
+
 }
 
 
 
+typedef enum _mainStep{
+  _pagemain=0,
+  _postConnect,
+  _ConnectWifi,
+  _GetWifi,
+  _CountSpeedUp
+
+}  _mainStep;
+
+_mainStep mainStep = _postConnect;
+
+
 void loop() {
 
-    switch(step)
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+
+
+    switch(mainStep)
     {
 
-      case 0: 
+      case _pagemain: 
       {
           if (Serial.available()) { // 检查串口缓冲区是否有可用数据
               String data = Serial.readStringUntil('\n'); // 读取一行数据,,数据要加换行符才可以
               if (data == "postConnect") {
-                step = 1;
+                mainStep = _postConnect;
               }else if (data == "ConnectWifi")
               {
                 connectStep = 0;
-                step = 2;
+                mainStep = _ConnectWifi;
+
               }
               else if (data == "GetWifi")
               {
-                step = 3;
+                mainStep = _GetWifi;
+
               }else if(data == "CountSpeedUp")
               {
-                step = 4;
+                mainStep = _CountSpeedUp;
+                Serial.println(" Entering CountSpeedUp state \n");
               }
             
           }
 
       }break;
-      case 1: 
+      case _postConnect: 
       {
           // postConnect();
-          step = 0;
+          mainStep = _pagemain;
       }break;
-      case 2: 
+      case _ConnectWifi: 
       {
 
         switch(connectStep)
@@ -135,26 +203,25 @@ void loop() {
             writeStringToEEPROM(ssidAddrOffset, ssid);
             writeStringToEEPROM(passwordAddrOffset, password);
             connectWifi(ssid.c_str(),password.c_str(),10);
-            step = 0;
+            mainStep = _pagemain;
           }break;
         }
 
       }break;
-      case 3:
+      case _GetWifi:
       {
-        step = 0;
+        mainStep = _pagemain;
         GetWifi();
       }break;
 
-      case 4:
+      case _CountSpeedUp:
       {
           if (Serial.available()) {
               
               char SendspeedData[4][20]={"","","",""};
               String speedData = Serial.readStringUntil('\n'); // 读取一行数据,,数据要加换行符才可以
+              String MQTT_speedData  = speedData;
               speedData.trim();
-
-
 
             for(int i=0,j=0,k=0; i<speedData.length();i++)
             {
@@ -175,9 +242,9 @@ void loop() {
 
             String data =  generateDataString(atoi(SendspeedData[0]),
             atoi(SendspeedData[1]),atoi(SendspeedData[2]),atoi(SendspeedData[3]));
-
-            postConnect(1, data);
-            step = 0;
+            client.publish("home/seria", MQTT_speedData.c_str());
+            //postConnect(1, data);
+            //mainStep = _pagemain;
 
           }
 
@@ -242,7 +309,7 @@ void postConnect(char requestType,String data)
       client.setInsecure();
 
       // 设置请求的URL
-      http.begin(client, "https://fc-mp-f86e4895-a6ec-4a1c-a14f-141f3d09c694.next.bspapp.com/demoArt/edit");
+      http.begin(client, "https://www.numbertwo.tech/demoArt/edit");
 
       // 设置Content-Type头
       http.addHeader("Content-Type", "application/json");
