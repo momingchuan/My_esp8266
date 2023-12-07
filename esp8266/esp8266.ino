@@ -126,12 +126,52 @@ typedef enum _mainStep{
 _mainStep mainStep = _postConnect;
 
 
+int sendValue=0;
+int sendValue1=0;
+int sendValue2=0;
+int sendValue3=0;
+
+ char buffer[10][10];
+
+ char  buffersend[50];
+
 void loop() {
 
+  long now = millis();
+//MQTT server 
   if (!client.connected()) {
     reconnect();
   }
   client.loop();
+
+
+
+  if (now - lastMsg > 100) {
+    lastMsg = now;
+    sendValue++;
+    sendValue1++;sendValue1++;
+    sendValue2++;sendValue2++;sendValue2++;
+    sendValue3++;sendValue3++;sendValue3++;sendValue3++;
+
+
+
+
+    itoa(sendValue,  buffer[0], 10);  // 第三个参数指定转换的基数为10，表示十进制
+    itoa(sendValue1, buffer[1], 10);  // 第三个参数指定转换的基数为10，表示十进制
+    itoa(sendValue2, buffer[2], 10);  // 第三个参数指定转换的基数为10，表示十进制
+    itoa(sendValue3, buffer[3], 10);  // 第三个参数指定转换的基数为10，表示十进制
+
+sprintf(buffersend, "%s,%s,%s,%s",  buffer[0],  buffer[1], buffer[2], buffer[3]);
+
+
+
+
+
+
+    client.publish("home/seria", buffersend);
+  }
+
+
 
 
 
