@@ -135,6 +135,9 @@ int sendValue3=0;
 
  char  buffersend[50];
 
+
+char flagABC=1;
+
 void loop() {
 
   long now = millis();
@@ -142,8 +145,18 @@ void loop() {
   if (!client.connected()) {
     reconnect();
   }
-  client.loop();
+ boolean MQTTsned_flag = client.loop();
+ 
 
+
+  if(flagABC == 2)
+  {
+    if(MQTTsned_flag)
+    {
+      flagABC = 0;
+      client.publish("home/seria/text/flag", "end");
+    }
+  }
 
 
   if (now - lastMsg > 100) {
@@ -153,22 +166,26 @@ void loop() {
     sendValue2++;sendValue2++;sendValue2++;
     sendValue3++;sendValue3++;sendValue3++;sendValue3++;
 
-
-
-
     itoa(sendValue,  buffer[0], 10);  // 第三个参数指定转换的基数为10，表示十进制
     itoa(sendValue1, buffer[1], 10);  // 第三个参数指定转换的基数为10，表示十进制
     itoa(sendValue2, buffer[2], 10);  // 第三个参数指定转换的基数为10，表示十进制
     itoa(sendValue3, buffer[3], 10);  // 第三个参数指定转换的基数为10，表示十进制
 
-sprintf(buffersend, "%s,%s,%s,%s",  buffer[0],  buffer[1], buffer[2], buffer[3]);
-
-
-
-
-
-
+    sprintf(buffersend, "%s,%s,%s,%s",  buffer[0],  buffer[1], buffer[2], buffer[3]);
     client.publish("home/seria", buffersend);
+
+
+
+    if(flagABC == 1)
+    {
+      flagABC = 2;
+      client.publish("home/seria/text/flag", "start");
+      String excelData = "First Name,Last Name,Age\n"
+                          "John,Doe,30\n"
+                          "Jane,Smith,25";
+
+      client.publish("home/seria/text", excelData.c_str());
+    }
   }
 
 
